@@ -32,7 +32,8 @@ router.get('/pending', auth, roleCheck('supervisor', 'hr'), (req, res) => {
     ).get(...overtimeParams).count;
     const otList = db.prepare(
       `SELECT o.id, 'overtime' as application_type, o.date, o.start_time, o.end_time, o.duration,
-              o.reason, o.status, o.created_at, u.name as applicant_name, d.name as department_name
+              o.overtime_type, o.compensatory_hours, o.reason, o.status, o.created_at,
+              u.name as applicant_name, d.name as department_name
        FROM overtime_applications o
        JOIN users u ON o.user_id = u.id
        LEFT JOIN departments d ON u.department_id = d.id
@@ -128,7 +129,7 @@ router.post('/:id/approve', auth, roleCheck('supervisor', 'hr'), (req, res) => {
 
     if (type === 'overtime' && newStatus === 'approved') {
       ensureBalance.run(app.user_id);
-      updateLeaveBalance.run(app.duration, app.user_id);
+      updateLeaveBalance.run(app.compensatory_hours, app.user_id);
     }
   });
 

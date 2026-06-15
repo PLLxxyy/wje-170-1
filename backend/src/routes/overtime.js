@@ -15,10 +15,20 @@ function calculateDuration(startTime, endTime) {
   return (endMinutes - startMinutes) / 60;
 }
 
+function calculateCompensatoryHours(duration, overtimeType) {
+  const multiplier = overtimeType === 'weekend' ? 1.5 : overtimeType === 'holiday' ? 2 : 1;
+  return Math.round(duration * multiplier * 10) / 10;
+}
+
 router.post('/', auth, (req, res) => {
-  const { date, startTime, endTime, reason, workContent } = req.body;
+  const { date, startTime, endTime, reason, workContent, overtimeType } = req.body;
   if (!date || !startTime || !endTime || !reason || !workContent) {
     return res.status(400).json({ error: '所有字段均为必填' });
+  }
+
+  const type = overtimeType || 'workday';
+  if (!['workday', 'weekend', 'holiday'].includes(type)) {
+    return res.status(400).json({ error: '无效的加班类型' });
   }
 
   const duration = calculateDuration(startTime, endTime);
@@ -26,10 +36,12 @@ router.post('/', auth, (req, res) => {
     return res.status(400).json({ error: '加班时长必须大于0' });
   }
 
+  const compensatoryHours = calculateCompensatoryHours(duration, type);
+
   const result = db.prepare(
-    `INSERT INTO overtime_applications (user_id, date, start_time, end_time, duration, reason, work_content, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending_supervisor')`
-  ).run(req.user.id, date, startTime, endTime, duration, reason, workContent);
+    `INSERT INTO overtime_applications (user_id, date, start_time, end_time, duration, overtime_type, compensatory_hours, reason, work_content, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_supervisor')`
+  ).run(req.user.id, date, startTime, endTime, duration, type, compensatoryHours, reason, workContent);
 
   const application = db.prepare(
     'SELECT * FROM overtime_applications WHERE id = ?'
@@ -106,20 +118,22 @@ router.put('/:id', auth, (req, res) => {
     return res.status(400).json({ error: '只有被驳回的申请才能修改' });
   }
 
-  const { date, startTime, endTime, reason, workContent } = req.body;
+  const { date, startTime, endTime, reason, workContent, overtimeType } = req.body;
   const newDate = date || application.date;
   const newStart = startTime || application.start_time;
   const newEnd = endTime || application.end_time;
   const newReason = reason || application.reason;
   const newContent = workContent || application.work_content;
+  const newType = overtimeType || application.overtime_type;
   const duration = calculateDuration(newStart, newEnd);
+  const compensatoryHours = calculateCompensatoryHours(duration, newType);
 
   db.prepare(
     `UPDATE overtime_applications
-     SET date = ?, start_time = ?, end_time = ?, duration = ?, reason = ?, work_content = ?,
-         status = 'pending_supervisor', updated_at = datetime('now')
+     SET date = ?, start_time = ?, end_time = ?, duration = ?, overtime_type = ?, compensatory_hours = ?,
+         reason = ?, work_content = ?, status = 'pending_supervisor', updated_at = datetime('now')
      WHERE id = ?`
-  ).run(newDate, newStart, newEnd, duration, newReason, newContent, req.params.id);
+  ).run(newDate, newStart, newEnd, duration, newType, compensatoryHours, newReason, newContent, req.params.id);
 
   const updated = db.prepare(
     'SELECT * FROM overtime_applications WHERE id = ?'

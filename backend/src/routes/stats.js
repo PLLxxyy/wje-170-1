@@ -13,6 +13,11 @@ router.get('/monthly', auth, (req, res) => {
      WHERE user_id = ? AND status = 'approved' AND strftime('%Y-%m', date) = ?`
   ).get(req.user.id, currentMonth).total;
 
+  const totalCompensatoryHours = db.prepare(
+    `SELECT COALESCE(SUM(compensatory_hours), 0) as total FROM overtime_applications
+     WHERE user_id = ? AND status = 'approved' AND strftime('%Y-%m', date) = ?`
+  ).get(req.user.id, currentMonth).total;
+
   const balance = db.prepare(
     'SELECT * FROM leave_balances WHERE user_id = ?'
   ).get(req.user.id);
@@ -22,7 +27,8 @@ router.get('/monthly', auth, (req, res) => {
     : 0;
 
   const monthlyTrend = db.prepare(
-    `SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(duration), 0) as hours
+    `SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(duration), 0) as hours,
+            COALESCE(SUM(compensatory_hours), 0) as compensatory_hours
      FROM overtime_applications
      WHERE user_id = ? AND status = 'approved'
        AND date >= date('now', '-5 months', 'start of month')
@@ -30,12 +36,22 @@ router.get('/monthly', auth, (req, res) => {
      ORDER BY month`
   ).all(req.user.id);
 
+  const typeBreakdown = db.prepare(
+    `SELECT overtime_type, COALESCE(SUM(duration), 0) as hours,
+            COALESCE(SUM(compensatory_hours), 0) as compensatory_hours
+     FROM overtime_applications
+     WHERE user_id = ? AND status = 'approved' AND strftime('%Y-%m', date) = ?
+     GROUP BY overtime_type`
+  ).all(req.user.id, currentMonth);
+
   res.json({
     totalHours,
+    totalCompensatoryHours,
     leaveBalance,
     overtimePay: totalHours * 150,
     isOverLimit: totalHours > 36,
-    monthlyTrend: monthlyTrend.map(t => ({ month: t.month, hours: t.hours })),
+    monthlyTrend: monthlyTrend.map(t => ({ month: t.month, hours: t.hours, compensatoryHours: t.compensatory_hours })),
+    typeBreakdown: typeBreakdown.map(t => ({ type: t.overtime_type, hours: t.hours, compensatoryHours: t.compensatory_hours })),
   });
 });
 

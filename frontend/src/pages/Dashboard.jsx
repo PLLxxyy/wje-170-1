@@ -139,6 +139,11 @@ export default function Dashboard() {
                   {data?.totalHours ?? 0}
                   <span className="text-sm font-normal text-slate-500 ml-1">小时</span>
                 </p>
+                {data?.totalCompensatoryHours > 0 && data?.totalCompensatoryHours !== data?.totalHours && (
+                  <p className="text-xs text-green-600 mt-0.5">
+                    调休折算 {data.totalCompensatoryHours} 小时
+                  </p>
+                )}
               </div>
             </div>
 
@@ -167,6 +172,32 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          {data?.typeBreakdown && data.typeBreakdown.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
+              <h2 className="text-base font-semibold text-slate-700 mb-4">加班类型分布</h2>
+              <div className="grid grid-cols-3 gap-4">
+                {data.typeBreakdown.map((t) => {
+                  const typeLabels = { workday: '工作日', weekend: '周末', holiday: '节假日' }
+                  const typeColors = { workday: 'bg-slate-50 text-slate-700', weekend: 'bg-purple-50 text-purple-700', holiday: 'bg-orange-50 text-orange-700' }
+                  const multiplierLabels = { workday: '1倍', weekend: '1.5倍', holiday: '2倍' }
+                  return (
+                    <div key={t.type} className={`rounded-lg p-4 ${typeColors[t.type] || typeColors.workday}`}>
+                      <div className="text-sm font-medium">{typeLabels[t.type] || t.type}</div>
+                      <div className="text-xs opacity-70 mt-0.5">调休折算 {multiplierLabels[t.type] || '1倍'}</div>
+                      <div className="mt-2">
+                        <span className="text-xl font-bold">{t.hours}</span>
+                        <span className="text-xs ml-1">小时加班</span>
+                        <span className="mx-1 opacity-50">→</span>
+                        <span className="text-xl font-bold">{t.compensatoryHours}</span>
+                        <span className="text-xs ml-1">小时调休</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-xl shadow-sm p-5">
             <h2 className="text-base font-semibold text-slate-700 mb-4">近6个月加班趋势</h2>

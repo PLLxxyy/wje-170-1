@@ -46,7 +46,7 @@ router.post('/exchange', auth, (req, res) => {
     return res.status(400).json({ error: '只能兑换已审批通过且未兑换的加班记录' });
   }
 
-  const totalAvailable = applications.reduce((sum, a) => sum + a.duration, 0);
+  const totalAvailable = applications.reduce((sum, a) => sum + a.compensatory_hours, 0);
   if (hours > totalAvailable) {
     return res.status(400).json({ error: '兑换时长超过可兑换加班时长' });
   }

@@ -15,6 +15,12 @@ const TYPE_BADGE = {
   leave: { label: '调休', cls: 'bg-green-100 text-green-700' }
 }
 
+const OVERTIME_TYPE_BADGE = {
+  workday: { label: '工作日', cls: 'bg-slate-100 text-slate-600' },
+  weekend: { label: '周末', cls: 'bg-purple-100 text-purple-700' },
+  holiday: { label: '节假日', cls: 'bg-orange-100 text-orange-700' },
+}
+
 const STATUS_BADGE = {
   pending_supervisor: { label: '待主管审批', cls: 'bg-yellow-100 text-yellow-700' },
   pending_hr: { label: '待人事复核', cls: 'bg-blue-100 text-blue-700' }
@@ -203,6 +209,14 @@ export default function ApprovalPending() {
                           <span className="mx-2 text-slate-300">|</span>
                           <span className="text-slate-400">时间：</span>
                           {item.start_time} - {item.end_time}
+                          {item.overtime_type && (
+                            <>
+                              <span className="mx-2 text-slate-300">|</span>
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${(OVERTIME_TYPE_BADGE[item.overtime_type] || OVERTIME_TYPE_BADGE.workday).cls}`}>
+                                {(OVERTIME_TYPE_BADGE[item.overtime_type] || OVERTIME_TYPE_BADGE.workday).label}
+                              </span>
+                            </>
+                          )}
                         </p>
                       ) : (
                         <p>
@@ -216,6 +230,9 @@ export default function ApprovalPending() {
                       <p>
                         <span className="text-slate-400">时长：</span>
                         {item.duration}小时
+                        {item.application_type === 'overtime' && item.compensatory_hours && item.compensatory_hours !== item.duration && (
+                          <span className="text-green-600 ml-2">→ {item.compensatory_hours}h调休</span>
+                        )}
                       </p>
                       <p>
                         <span className="text-slate-400">原因：</span>

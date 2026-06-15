@@ -38,6 +38,8 @@ db.exec(`
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
     duration REAL NOT NULL,
+    overtime_type TEXT NOT NULL DEFAULT 'workday' CHECK(overtime_type IN ('workday', 'weekend', 'holiday')),
+    compensatory_hours REAL NOT NULL DEFAULT 0,
     reason TEXT NOT NULL,
     work_content TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending_supervisor' CHECK(status IN ('pending_supervisor', 'pending_hr', 'approved', 'rejected')),
@@ -90,5 +92,44 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_users_department ON users(department_id);
   CREATE INDEX IF NOT EXISTS idx_users_supervisor ON users(supervisor_id);
 `);
+
+const applied = db.prepare(
+  "SELECT name FROM pragma_table_info('overtime_applications') WHERE name = 'overtime_type'"
+).get();
+
+if (!applied) {
+  db.exec(`
+    ALTER TABLE overtime_applications ADD COLUMN overtime_type TEXT NOT NULL DEFAULT 'workday' CHECK(overtime_type IN ('workday', 'weekend', 'holiday'));
+    ALTER TABLE overtime_applications ADD COLUMN compensatory_hours REAL NOT NULL DEFAULT 0;
+  `);
+
+  const existingRows = db.prepare(
+    'SELECT id, duration FROM overtime_applications'
+  ).all();
+
+  const updateStmt = db.prepare(
+    'UPDATE overtime_applications SET compensatory_hours = duration WHERE id = ?'
+  );
+  const recalcTransaction = db.transaction(() => {
+    for (const row of existingRows) {
+      updateStmt.run(row.id);
+    }
+  });
+  recalcTransaction();
+}
+
+function recalcAllCompensatoryHours() {
+  const rows = db.prepare('SELECT id, duration, overtime_type FROM overtime_applications').all();
+  const updateStmt = db.prepare('UPDATE overtime_applications SET compensatory_hours = ? WHERE id = ?');
+  const tx = db.transaction(() => {
+    for (const row of rows) {
+      const multiplier = row.overtime_type === 'weekend' ? 1.5 : row.overtime_type === 'holiday' ? 2 : 1;
+      updateStmt.run(Math.round(row.duration * multiplier * 10) / 10, row.id);
+    }
+  });
+  tx();
+}
+
+recalcAllCompensatoryHours();
 
 export default db;

@@ -18,6 +18,12 @@ const STATUS_MAP = {
   rejected: { label: '已打回', className: 'bg-red-100 text-red-700' }
 }
 
+const OVERTIME_TYPE_BADGE = {
+  workday: { label: '工作日', className: 'bg-slate-100 text-slate-600' },
+  weekend: { label: '周末', className: 'bg-purple-100 text-purple-700' },
+  holiday: { label: '节假日', className: 'bg-orange-100 text-orange-700' },
+}
+
 const TIMELINE_STEPS = [
   { key: 'submitted', label: '已提交' },
   { key: 'supervisor', label: '主管审批' },
@@ -225,9 +231,11 @@ export default function OvertimeList() {
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">加班日期</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">加班类型</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">开始时间</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">结束时间</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">时长</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">调休折算</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">原因</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">状态</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">操作</th>
@@ -236,23 +244,27 @@ export default function OvertimeList() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-gray-400">加载中...</td>
+                <td colSpan={9} className="px-4 py-12 text-center text-gray-400">加载中...</td>
               </tr>
             ) : list.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-gray-400">暂无数据</td>
+                <td colSpan={9} className="px-4 py-12 text-center text-gray-400">暂无数据</td>
               </tr>
             ) : (
-              list.map(item => (
+              list.map(item => {
+                const typeBadge = OVERTIME_TYPE_BADGE[item.overtime_type] || OVERTIME_TYPE_BADGE.workday
+                return (
                 <tr
                   key={item.id}
                   onClick={() => handleRowClick(item)}
                   className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
                   <td className="px-4 py-3 text-sm text-gray-900">{dayjs(item.date).format('YYYY-MM-DD')}</td>
+                  <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${typeBadge.className}`}>{typeBadge.label}</span></td>
                   <td className="px-4 py-3 text-sm text-gray-700">{item.start_time}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{item.end_time}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{item.duration}h</td>
+                  <td className="px-4 py-3 text-sm text-green-700 font-medium">{item.compensatory_hours}h</td>
                   <td className="px-4 py-3 text-sm text-gray-700 max-w-[200px] truncate">{item.reason}</td>
                   <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
@@ -267,7 +279,8 @@ export default function OvertimeList() {
                     )}
                   </td>
                 </tr>
-              ))
+                )
+              })
             )}
           </tbody>
         </table>
@@ -326,12 +339,20 @@ export default function OvertimeList() {
                     <span className="text-gray-900">{dayjs(detail.date).format('YYYY-MM-DD')}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-gray-500">加班类型</span>
+                    <span className="text-gray-900">{({ workday: '工作日', weekend: '周末', holiday: '节假日' })[detail.overtime_type] || '工作日'}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-500">时间</span>
                     <span className="text-gray-900">{detail.start_time} - {detail.end_time}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">时长</span>
                     <span className="text-gray-900">{detail.duration}小时</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">调休折算</span>
+                    <span className="text-green-700 font-medium">{detail.compensatory_hours}小时</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">原因</span>

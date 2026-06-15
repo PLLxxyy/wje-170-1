@@ -3,6 +3,12 @@ import { ArrowLeftRight, Clock, Coffee, Sun } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../utils/api'
 
+const OVERTIME_TYPE_LABELS = {
+  workday: '工作日',
+  weekend: '周末',
+  holiday: '节假日',
+}
+
 export default function LeaveExchange() {
   const [balance, setBalance] = useState({ totalOvertimeHours: 0, exchangedHours: 0, usedHours: 0, availableHours: 0 })
   const [overtimes, setOvertimes] = useState([])
@@ -35,7 +41,7 @@ export default function LeaveExchange() {
   const availableHours = balance.availableHours || 0
   const totalSelectedHours = overtimes
     .filter((o) => selected.includes(o.id))
-    .reduce((sum, o) => sum + (o.duration || 0), 0)
+    .reduce((sum, o) => sum + (o.compensatory_hours || 0), 0)
 
   const toggleSelect = (id) => {
     setSelected((prev) =>
@@ -136,10 +142,14 @@ export default function LeaveExchange() {
                     <span className="text-sm text-slate-700">
                       {dayjs(o.date).format('YYYY-MM-DD')}
                     </span>
+                    <span className="text-xs text-slate-400">
+                      {OVERTIME_TYPE_LABELS[o.overtime_type] || '工作日'}
+                    </span>
                     <span className="text-sm text-slate-500">
                       {o.start_time} ~ {o.end_time}
                     </span>
-                    <span className="text-sm font-medium text-slate-800">{o.duration}小时</span>
+                    <span className="text-sm text-slate-400">{o.duration}h</span>
+                    <span className="text-sm font-medium text-green-700">{o.compensatory_hours}h调休</span>
                   </div>
                 </label>
               ))}

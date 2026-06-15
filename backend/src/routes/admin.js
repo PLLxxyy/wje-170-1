@@ -67,8 +67,8 @@ router.get('/export', auth, roleCheck('hr'), (req, res) => {
 
   const records = db.prepare(
     `SELECT o.id, u.name as employee_name, d.name as department_name, o.date,
-            o.start_time, o.end_time, o.duration, o.reason, o.work_content,
-            o.status, o.created_at
+            o.start_time, o.end_time, o.duration, o.overtime_type, o.compensatory_hours,
+            o.reason, o.work_content, o.status, o.created_at
      FROM overtime_applications o
      JOIN users u ON o.user_id = u.id
      LEFT JOIN departments d ON u.department_id = d.id
@@ -76,10 +76,12 @@ router.get('/export', auth, roleCheck('hr'), (req, res) => {
      ORDER BY o.date`
   ).all(currentMonth);
 
-  const headers = ['ID', '员工姓名', '部门', '日期', '开始时间', '结束时间', '时长(小时)', '原因', '工作内容', '状态', '创建时间'];
+  const headers = ['ID', '员工姓名', '部门', '日期', '开始时间', '结束时间', '时长(小时)', '加班类型', '调休折算(小时)', '原因', '工作内容', '状态', '创建时间'];
+  const typeMap = { workday: '工作日', weekend: '周末', holiday: '节假日' };
   const rows = records.map(r => [
     r.id, r.employee_name, r.department_name, r.date,
-    r.start_time, r.end_time, r.duration, r.reason,
+    r.start_time, r.end_time, r.duration, typeMap[r.overtime_type] || r.overtime_type,
+    r.compensatory_hours, r.reason,
     r.work_content, r.status, r.created_at,
   ]);
 
