@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import db from '../database.js';
+import db, { getOvertimeTypeByDate } from '../database.js';
 import { auth } from '../middleware/auth.js';
 
 const router = Router();
@@ -26,7 +26,7 @@ router.post('/', auth, (req, res) => {
     return res.status(400).json({ error: '所有字段均为必填' });
   }
 
-  const type = overtimeType || 'workday';
+  const type = overtimeType || getOvertimeTypeByDate(date);
   if (!['workday', 'weekend', 'holiday'].includes(type)) {
     return res.status(400).json({ error: '无效的加班类型' });
   }
@@ -124,7 +124,7 @@ router.put('/:id', auth, (req, res) => {
   const newEnd = endTime || application.end_time;
   const newReason = reason || application.reason;
   const newContent = workContent || application.work_content;
-  const newType = overtimeType || application.overtime_type;
+  const newType = overtimeType || getOvertimeTypeByDate(newDate);
   const duration = calculateDuration(newStart, newEnd);
   const compensatoryHours = calculateCompensatoryHours(duration, newType);
 
