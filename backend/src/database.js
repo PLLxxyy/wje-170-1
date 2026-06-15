@@ -93,29 +93,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_users_supervisor ON users(supervisor_id);
 `);
 
-const applied = db.prepare(
-  "SELECT name FROM pragma_table_info('overtime_applications') WHERE name = 'overtime_type'"
-).get();
+const SCHEMA_VERSION = 2;
+const currentVersion = db.pragma('user_version', { simple: true });
 
-if (!applied) {
-  db.exec(`
-    ALTER TABLE overtime_applications ADD COLUMN overtime_type TEXT NOT NULL DEFAULT 'workday' CHECK(overtime_type IN ('workday', 'weekend', 'holiday'));
-    ALTER TABLE overtime_applications ADD COLUMN compensatory_hours REAL NOT NULL DEFAULT 0;
-  `);
-
-  const existingRows = db.prepare(
-    'SELECT id, duration FROM overtime_applications'
-  ).all();
-
-  const updateStmt = db.prepare(
-    'UPDATE overtime_applications SET compensatory_hours = duration WHERE id = ?'
-  );
-  const recalcTransaction = db.transaction(() => {
-    for (const row of existingRows) {
-      updateStmt.run(row.id);
-    }
-  });
-  recalcTransaction();
+function getOvertimeTypeByDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  if (day === 0 || day === 6) return 'weekend';
+  return 'workday';
 }
 
 function recalcAllCompensatoryHours() {
@@ -130,6 +115,71 @@ function recalcAllCompensatoryHours() {
   tx();
 }
 
-recalcAllCompensatoryHours();
+function recalcAllOvertimeTypesByDate() {
+  const rows = db.prepare('SELECT id, date, overtime_type FROM overtime_applications').all();
+  const updateStmt = db.prepare('UPDATE overtime_applications SET overtime_type = ? WHERE id = ?');
+  let changed = 0;
+  const tx = db.transaction(() => {
+    for (const row of rows) {
+      const detected = getOvertimeTypeByDate(row.date);
+      if (detected !== row.overtime_type && row.overtime_type === 'workday') {
+        updateStmt.run(detected, row.id);
+        changed++;
+      }
+    }
+  });
+  tx();
+  return changed;
+}
+
+function recalcAllLeaveBalances() {
+  const userBalances = db.prepare(`
+    SELECT user_id, COALESCE(SUM(compensatory_hours), 0) as total
+    FROM overtime_applications
+    WHERE status = 'approved'
+    GROUP BY user_id
+  `).all();
+
+  const ensureStmt = db.prepare(
+    'INSERT OR IGNORE INTO leave_balances (user_id, total_overtime_hours, exchanged_hours, used_hours) VALUES (?, 0, 0, 0)'
+  );
+  const updateStmt = db.prepare(
+    'UPDATE leave_balances SET total_overtime_hours = ? WHERE user_id = ?'
+  );
+
+  const tx = db.transaction(() => {
+    for (const b of userBalances) {
+      ensureStmt.run(b.user_id);
+      updateStmt.run(b.total, b.user_id);
+    }
+  });
+  tx();
+}
+
+if (currentVersion < 1) {
+  const hasTypeCol = db.prepare(
+    "SELECT name FROM pragma_table_info('overtime_applications') WHERE name = 'overtime_type'"
+  ).get();
+
+  if (!hasTypeCol) {
+    db.exec(`
+      ALTER TABLE overtime_applications ADD COLUMN overtime_type TEXT NOT NULL DEFAULT 'workday' CHECK(overtime_type IN ('workday', 'weekend', 'holiday'));
+      ALTER TABLE overtime_applications ADD COLUMN compensatory_hours REAL NOT NULL DEFAULT 0;
+    `);
+  }
+
+  recalcAllOvertimeTypesByDate();
+  recalcAllCompensatoryHours();
+  recalcAllLeaveBalances();
+
+  db.pragma('user_version = 1');
+}
+
+if (currentVersion < 2) {
+  recalcAllOvertimeTypesByDate();
+  recalcAllCompensatoryHours();
+  recalcAllLeaveBalances();
+  db.pragma('user_version = 2');
+}
 
 export default db;
